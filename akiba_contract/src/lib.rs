@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use near_sdk::serde::{Serialize,Deserialize};
 
 
+
 #[derive(Clone,BorshDeserialize, BorshSerialize, Serialize,Debug,PartialEq,Deserialize)]
 #[serde(crate = "near_sdk::serde")]
 pub struct Saver {
@@ -40,8 +41,7 @@ pub struct Save {
 #[serde(crate = "near_sdk::serde")]
 pub struct Reward {
     pub account_id: AccountId,
-    pub reward_id: String,
-    pub token_id: String,
+    pub reward_id: u128,
     pub redeemed: bool,
     pub reward_type: String,
 }
@@ -221,7 +221,6 @@ impl Contract {
 
             let saver = self.savers.get(&account_id).cloned().unwrap();
 
-
             let account_id = saver.account_id;
             let saver_id = saver.saver_id;
             let total_saves_amount = saver.total_saves_amount + save_amount;
@@ -251,6 +250,82 @@ impl Contract {
 
     pub fn get_save(&self, save_id: u128) -> &Save {
         self.saves.get(&save_id).unwrap()
+    }
+
+    #[payable]
+    pub fn withdraw(&mut self, save_id: u128,end_date:u128,reward_id:u128) -> bool {
+        let mut save = self.saves.get(&save_id).cloned().unwrap();
+
+        let requester_account = env::predecessor_account_id();
+
+        assert!(save.account_id == requester_account, "Not owner");
+
+
+        if save.save_end <= end_date.clone(){
+             let mut withdrawing_saver = self.savers.get(&save.account_id).cloned().unwrap();
+             withdrawing_saver.total_saves_amount -= save.save_amount.clone();
+
+             self.savers.insert(withdrawing_saver.account_id.clone(),withdrawing_saver);
+
+             Promise::new(save.account_id.clone()).transfer(save.save_amount.clone());
+
+             save.is_save_active = false;
+             let save_id = save.token_id.clone();
+
+             self.saves.insert(save.save_id.clone(),save);
+
+             
+
+             let token_id_to_string = save_id.to_string();
+
+             self.nft_revoke(token_id_to_string, requester_account.clone());
+
+             let account_id: AccountId = requester_account.clone();
+             let reward_id:u128  = self.reward_id_count +1;
+             self.reward_id_count +=1;
+             let redeemed: bool = false;
+             let reward_type: String = "Amnesty".to_string();
+
+             let reward = Reward { account_id, reward_id,redeemed,reward_type};
+
+             self.rewards.insert(reward_id.clone(),reward);
+
+
+
+             true
+        }else{
+
+            let remainining_time = save.save_end.clone() - end_date;
+            if reward_id != 0 {
+
+                
+
+            }else{
+
+                let penalty value = 
+
+            }
+           
+            true
+        }
+
+        
+    }
+
+
+    // Function to calculate the percentage based on remaining time
+    pub fn calculate_percentage(save: &Save, remaining_time: u128) -> u128 {
+        let remaining_days = remaining_time / (60 * 60 * 24);
+
+        if remaining_days > 0 && remaining_days < 2 {
+            (0.01 * save.save_amount as f64) as u128
+        } else if remaining_days >= 2 && remaining_days < 10 {
+            (0.02 * save.save_amount as f64) as u128
+        } else if remaining_days >= 10 && remaining_days < 30 {
+            (0.03 * save.save_amount as f64) as u128
+        } else {
+            (0.05 * save.save_amount as f64) as u128
+        }
     }
 
 }
