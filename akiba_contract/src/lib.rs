@@ -252,17 +252,35 @@ impl Contract {
         self.saves.get(&save_id).unwrap()
     }
 
+    
+    // Function to calculate the percentage based on remaining time
+    pub fn calculate_percentage(&self, save: &Save, remaining_time: u128) -> u128 {
+        let remaining_days = remaining_time / (60 * 60 * 24);
+
+        if remaining_days > 0 && remaining_days < 2 {
+            (0.01 * save.save_amount as f64) as u128
+        } else if remaining_days >= 2 && remaining_days < 10 {
+            (0.02 * save.save_amount as f64) as u128
+        } else if remaining_days >= 10 && remaining_days < 30 {
+            (0.03 * save.save_amount as f64) as u128
+        } else {
+            (0.05 * save.save_amount as f64) as u128
+        }
+    }
+
     #[payable]
-    pub fn withdraw(&mut self, save_id: u128,end_date:u128,reward_id:u128) -> bool {
+    pub fn withdraw(&mut self, save_id: u128,end_date:u128,reward_id:u128){
         let mut save = self.saves.get(&save_id).cloned().unwrap();
 
         let requester_account = env::predecessor_account_id();
 
         assert!(save.account_id == requester_account, "Not owner");
 
+        let mut withdrawing_saver = self.savers.get(&save.account_id).cloned().unwrap();
+
 
         if save.save_end <= end_date.clone(){
-             let mut withdrawing_saver = self.savers.get(&save.account_id).cloned().unwrap();
+             
              withdrawing_saver.total_saves_amount -= save.save_amount.clone();
 
              self.savers.insert(withdrawing_saver.account_id.clone(),withdrawing_saver);
@@ -291,42 +309,63 @@ impl Contract {
              self.rewards.insert(reward_id.clone(),reward);
 
 
-
-             true
         }else{
 
-            let remainining_time = save.save_end.clone() - end_date;
+            let remaining_time = save.save_end.clone() - end_date;
+
+            withdrawing_saver.total_saves_amount -= save.save_amount.clone();
+
+            self.savers.insert(withdrawing_saver.account_id.clone(),withdrawing_saver);
+
+            save.is_save_active = false;
+            let save_id = save.token_id.clone();
+
+            let save_amount_to_transfer = save.save_amount.clone();
+            let transfer_to = save.account_id.clone();
+
+            self.saves.insert(save.save_id.clone(),save.clone());
+
+            let token_id_to_string = save_id.to_string();
+
+            self.nft_revoke(token_id_to_string, requester_account.clone());
+
             if reward_id != 0 {
 
-                
+                let reward = self.rewards.get(&reward_id).cloned().unwrap();
+
+                if reward.reward_type == "Amnesty"{
+                    Promise::new(transfer_to.clone()).transfer(save_amount_to_transfer.clone());
+                }else{
+
+                    let penalty_value = self.calculate_percentage(&save, remaining_time.clone());
+                    let new_save_amount_to_transfer = save_amount_to_transfer - penalty_value;
+                    self.akiba_earnings += penalty_value;
+    
+                    Promise::new(transfer_to.clone()).transfer(new_save_amount_to_transfer.clone());
+
+                    self.listed.insert(transfer_to.clone(),true);
+                }
 
             }else{
 
-                let penalty value = 
+                let penalty_value = self.calculate_percentage(&save, remaining_time.clone());
+                let new_save_amount_to_transfer = save_amount_to_transfer - penalty_value;
+                self.akiba_earnings += penalty_value;
+
+                Promise::new(transfer_to.clone()).transfer(new_save_amount_to_transfer.clone());
+
+                self.listed.insert(transfer_to.clone(),true);
 
             }
            
-            true
         }
 
         
     }
 
+    
 
-    // Function to calculate the percentage based on remaining time
-    pub fn calculate_percentage(save: &Save, remaining_time: u128) -> u128 {
-        let remaining_days = remaining_time / (60 * 60 * 24);
 
-        if remaining_days > 0 && remaining_days < 2 {
-            (0.01 * save.save_amount as f64) as u128
-        } else if remaining_days >= 2 && remaining_days < 10 {
-            (0.02 * save.save_amount as f64) as u128
-        } else if remaining_days >= 10 && remaining_days < 30 {
-            (0.03 * save.save_amount as f64) as u128
-        } else {
-            (0.05 * save.save_amount as f64) as u128
-        }
-    }
 
 }
 
@@ -346,6 +385,7 @@ mod tests {
     use near_sdk::test_utils::{accounts, VMContextBuilder};
     use near_sdk::testing_env;
     use std::collections::HashMap;
+    use near_sdk::Balance;
 
     use super::*;
 
@@ -359,6 +399,15 @@ mod tests {
             .predecessor_account_id(predecessor_account_id);
         builder
     }
+
+        // Auxiliar fn: create a mock context
+    fn set_context(predecessor: AccountId, amount: Balance) {
+            let mut builder = VMContextBuilder::new();
+            builder.predecessor_account_id(predecessor);
+            builder.attached_deposit(amount);
+      
+            testing_env!(builder.build());
+          }
 
     fn sample_token_metadata() -> TokenMetadata {
         TokenMetadata {
@@ -444,6 +493,51 @@ mod tests {
         assert_eq!(token.owner_id.to_string(), account_id.to_string());
         assert_eq!(token.approved_account_ids.unwrap(), HashMap::new());
     }
+
+    #[test]
+    fn test_withdraw() {
+        let mut context = get_context(accounts(0));
+        testing_env!(context.build());
+        let mut contract = Contract::new_default_meta(accounts(0).into());
+
+        let save_amount :u128= 100;
+        let save_start: u128 = 1000;
+        let save_end: u128 = 1200;
+        let account_id = env::predecessor_account_id();
+        let user = account_id.clone();
+
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .attached_deposit(MINT_STORAGE_COST + save_amount.clone())
+            .predecessor_account_id(account_id.clone())
+            .build());
+
+        let token_id = "1".to_string();
+        let token = contract.set_save(save_amount.clone(), save_start.clone(), save_end.clone());
+
+        let result = contract.get_save(1);
+
+        // Assert that the result is Some(Save)
+        assert_eq!(result.save_amount, save_amount);
+
+        assert_eq!(token.token_id, token_id);
+        assert_eq!(token.owner_id.to_string(), account_id.to_string());
+        assert_eq!(token.approved_account_ids.unwrap(), HashMap::new());
+
+        set_context(user.clone(),1);
+
+        contract.withdraw(1,1300,0);
+
+
+        let save_result = contract.get_save(1);
+
+        // Assert that the result is Some(Save)
+        assert_eq!(save_result.is_save_active, false);
+
+
+
+    }
+
 
 
     #[test]
