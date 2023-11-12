@@ -364,6 +364,192 @@ impl Contract {
     }
 
     
+    pub fn transfer_save(&mut self, save_id: u128,transfer_to:AccountId,end_date:u128,reward_id:u128){
+
+        let mut save = self.saves.get(&save_id).cloned().unwrap();
+
+        let requester_account = env::predecessor_account_id();
+
+        assert!(save.account_id == requester_account, "Not owner");
+
+        let mut withdrawing_saver = self.savers.get(&save.account_id).cloned().unwrap();
+
+
+        if save.save_end <= end_date.clone(){
+             
+             withdrawing_saver.total_saves_amount -= save.save_amount.clone();
+
+             self.savers.insert(withdrawing_saver.account_id.clone(),withdrawing_saver);
+
+             
+             if !self.user_is_saver(&transfer_to) {
+
+                self.is_saver.insert(transfer_to.clone(), true);
+
+                let saver_id = self.savers_count + 1;
+                self.savers_count += 1; 
+                let total_saves_amount =save.save_amount.clone();
+                let  total_amount_earned =  0;
+    
+                let new_saver = Saver{ account_id: transfer_to.clone(),saver_id,total_saves_amount,total_amount_earned};
+    
+                self.savers.insert(transfer_to.clone(),new_saver);
+    
+             }else{
+
+                
+                let saver = self.savers.get(&transfer_to).cloned().unwrap();
+
+                let account_id = saver.account_id;
+                let saver_id = saver.saver_id;
+                let total_saves_amount = saver.total_saves_amount + save.save_amount.clone();
+                let  total_amount_earned =  saver.total_amount_earned;
+
+                let new_saver = Saver{ account_id: account_id.clone(),saver_id,total_saves_amount,total_amount_earned};
+
+                self.savers.insert(account_id,new_saver);
+
+             }
+
+             save.is_transfer = false;
+             save.account_id = transfer_to.clone();
+             
+             let save_id = save.token_id.clone();
+
+             self.saves.insert(save.save_id.clone(),save);
+
+             
+
+             let token_id_to_string = save_id.to_string();
+
+            
+             self.nft_transfer(transfer_to.clone(), token_id_to_string.clone(), None, None);
+
+             let account_id: AccountId = requester_account.clone();
+             let reward_id:u128  = self.reward_id_count +1;
+             self.reward_id_count +=1;
+             let redeemed: bool = false;
+             let reward_type: String = "Amnesty".to_string();
+
+             let reward = Reward { account_id, reward_id,redeemed,reward_type};
+
+             self.rewards.insert(reward_id.clone(),reward);
+
+
+        }else{
+
+            let remaining_time = save.save_end.clone() - end_date;
+
+            withdrawing_saver.total_saves_amount -= save.save_amount.clone();
+
+            self.savers.insert(withdrawing_saver.account_id.clone(),withdrawing_saver);
+
+            save.is_transfer = false;
+           
+
+            let save_id = save.token_id.clone();
+
+            let save_amount_to_transfer = save.save_amount.clone();
+
+            let from =  save.account_id.clone();
+            
+            save.account_id = transfer_to.clone();
+
+            let token_id_to_string = save_id.to_string();
+
+            if !self.user_is_saver(&transfer_to) {
+
+                self.is_saver.insert(transfer_to.clone(), true);
+
+                let saver_id = self.savers_count + 1;
+                self.savers_count += 1; 
+                let total_saves_amount =save.save_amount.clone();
+                let  total_amount_earned =  0;
+    
+                let new_saver = Saver{ account_id: transfer_to.clone(),saver_id,total_saves_amount,total_amount_earned};
+    
+                self.savers.insert(transfer_to.clone(),new_saver);
+    
+             }else{
+
+                
+                let saver = self.savers.get(&transfer_to).cloned().unwrap();
+
+                let account_id = saver.account_id;
+                let saver_id = saver.saver_id;
+                let total_saves_amount = saver.total_saves_amount + save.save_amount.clone();
+                let  total_amount_earned =  saver.total_amount_earned;
+
+                let new_saver = Saver{ account_id: account_id.clone(),saver_id,total_saves_amount,total_amount_earned};
+
+                self.savers.insert(account_id,new_saver);
+
+             }
+
+            if reward_id != 0 {
+
+                let reward = self.rewards.get(&reward_id).cloned().unwrap();
+
+                if reward.reward_type == "Amnesty"{
+
+                  self.nft_transfer(transfer_to.clone(), token_id_to_string.clone(), None, None);
+                      
+                    self.saves.insert(save.save_id.clone(),save.clone());
+
+                }else{
+
+                    let penalty_value = self.calculate_percentage(&save, remaining_time.clone());
+                    let new_save_amount_to_transfer = save_amount_to_transfer - penalty_value;
+                    self.akiba_earnings += penalty_value;
+
+                    save.save_amount = new_save_amount_to_transfer;
+
+                    self.nft_transfer(transfer_to.clone(), token_id_to_string.clone(), None, None);
+                    
+                    self.listed.insert(from.clone(),true);
+
+                    self.saves.insert(save.save_id.clone(),save.clone());
+                }
+
+            }else{
+
+                let penalty_value = self.calculate_percentage(&save, remaining_time.clone());
+                let new_save_amount_to_transfer = save_amount_to_transfer - penalty_value;
+                self.akiba_earnings += penalty_value;
+
+                save.save_amount = new_save_amount_to_transfer;
+
+                self.nft_transfer(transfer_to.clone(), token_id_to_string.clone(), None, None);
+                
+                self.listed.insert(from.clone(),true);
+
+                self.saves.insert(save.save_id.clone(),save.clone());
+
+            }
+           
+        }
+
+        
+    }
+
+    pub fn request_transfer(&mut self,save_id: u128) -> Save {
+
+        let mut save = self.saves.get(&save_id).cloned().unwrap();
+
+        let requester = env::predecessor_account_id();
+
+        assert!(save.account_id.clone() == requester, "Requester not owner");
+
+        save.is_transfer = true;
+        
+        let id = save.save_id.clone();
+
+        self.saves.insert(id, save.clone());
+
+        save
+    }
+    
+
 
 
 
@@ -538,7 +724,50 @@ mod tests {
 
     }
 
+    #[test]
+    fn test_transfer_save() {
+        
+        let mut context = get_context(accounts(0));
+        testing_env!(context.build());
+        let mut contract = Contract::new_default_meta(accounts(0).into());
 
+        let save_amount :u128= 100;
+        let save_start: u128 = 1000;
+        let save_end: u128 = 1200;
+        let account_id = env::predecessor_account_id();
+        let user = account_id.clone();
+
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .attached_deposit(MINT_STORAGE_COST + save_amount.clone())
+            .predecessor_account_id(account_id.clone())
+            .build());
+
+        let token_id = "1".to_string();
+        let token = contract.set_save(save_amount.clone(), save_start.clone(), save_end.clone());
+
+        let result = contract.get_save(1);
+
+        // Assert that the result is Some(Save)
+        assert_eq!(result.save_amount, save_amount);
+
+        assert_eq!(token.token_id, token_id);
+        assert_eq!(token.owner_id.to_string(), account_id.to_string());
+        assert_eq!(token.approved_account_ids.unwrap(), HashMap::new());
+
+        set_context(user.clone(),1);
+
+        contract.transfer_save(1,accounts(1),1300,0);
+
+
+        let save_result = contract.get_save(1);
+
+        // Assert that the result is Some(Save)
+        assert_eq!(save_result.account_id, accounts(1));
+
+
+
+    }
 
     #[test]
     fn test_transfer() {
