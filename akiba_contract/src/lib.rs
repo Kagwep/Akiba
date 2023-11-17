@@ -64,6 +64,7 @@ pub struct Contract {
     savers_count:u128,
     savers_list:HashMap<u128, Saver>,
     listed:HashMap<AccountId, bool>,
+    listed_for:HashMap<AccountId, u128>,
     key_count:u128,
 }
 
@@ -124,7 +125,10 @@ impl Contract {
             token_id_count:0,
             savers_list:HashMap::new(),
             listed:HashMap::new(),
+            listed_for:HashMap::new(),
             key_count:0,
+
+
 
         }
     }
@@ -252,7 +256,6 @@ impl Contract {
         self.saves.get(&save_id).unwrap()
     }
 
-    
     // Function to calculate the percentage based on remaining time
     pub fn calculate_percentage(&self, save: &Save, remaining_time: u128) -> u128 {
         let remaining_days = remaining_time / (60 * 60 * 24);
@@ -265,6 +268,20 @@ impl Contract {
             (0.03 * save.save_amount as f64) as u128
         } else {
             (0.05 * save.save_amount as f64) as u128
+        }
+    }
+
+    pub fn calculate_percentage_transfer(&self, save: &Save, remaining_time: u128) -> u128 {
+        let remaining_days = remaining_time / (60 * 60 * 24);
+
+        if remaining_days > 0 && remaining_days < 2 {
+            (0.005 * save.save_amount as f64) as u128
+        } else if remaining_days >= 2 && remaining_days < 10 {
+            (0.01 * save.save_amount as f64) as u128
+        } else if remaining_days >= 10 && remaining_days < 30 {
+            (0.015 * save.save_amount as f64) as u128
+        } else {
+            (0.025 * save.save_amount as f64) as u128
         }
     }
 
@@ -290,7 +307,7 @@ impl Contract {
              save.is_save_active = false;
              let save_id = save.token_id.clone();
 
-             self.saves.insert(save.save_id.clone(),save);
+             self.saves.insert(save.save_id.clone(),save.clone());
 
              
 
@@ -304,9 +321,22 @@ impl Contract {
              let redeemed: bool = false;
              let reward_type: String = "Amnesty".to_string();
 
-             let reward = Reward { account_id, reward_id,redeemed,reward_type};
+             let reward = Reward { account_id:account_id.clone(), reward_id,redeemed,reward_type};
 
              self.rewards.insert(reward_id.clone(),reward);
+
+             let is_listed = self.is_account_listed(account_id.clone());
+
+             if is_listed {
+                    let mut listed_for = self.get_listed_duration(account_id.clone());
+
+                    if listed_for > save.save_period.clone(){
+                        listed_for = listed_for - save.save_period.clone();
+                        self.listed_for.insert(account_id.clone(),listed_for);
+                    }else{
+                        self.remove_from_list(account_id.clone());
+                    }
+             }
 
 
         }else{
@@ -344,6 +374,7 @@ impl Contract {
                     Promise::new(transfer_to.clone()).transfer(new_save_amount_to_transfer.clone());
 
                     self.listed.insert(transfer_to.clone(),true);
+                    self.listed_for.insert(transfer_to.clone(), save.save_period.clone());
                 }
 
             }else{
@@ -355,6 +386,7 @@ impl Contract {
                 Promise::new(transfer_to.clone()).transfer(new_save_amount_to_transfer.clone());
 
                 self.listed.insert(transfer_to.clone(),true);
+                self.listed_for.insert(transfer_to.clone(), save.save_period.clone());
 
             }
            
@@ -416,7 +448,7 @@ impl Contract {
              
              let save_id = save.token_id.clone();
 
-             self.saves.insert(save.save_id.clone(),save);
+             self.saves.insert(save.save_id.clone(),save.clone());
 
              
 
@@ -431,9 +463,22 @@ impl Contract {
              let redeemed: bool = false;
              let reward_type: String = "Amnesty".to_string();
 
-             let reward = Reward { account_id, reward_id,redeemed,reward_type};
+             let reward = Reward { account_id:account_id.clone(), reward_id,redeemed,reward_type};
 
              self.rewards.insert(reward_id.clone(),reward);
+
+             let is_listed = self.is_account_listed(account_id.clone());
+
+             if is_listed {
+                    let mut listed_for = self.get_listed_duration(account_id.clone());
+
+                    if listed_for > save.save_period.clone(){
+                        listed_for = listed_for - save.save_period.clone();
+                        self.listed_for.insert(account_id.clone(),listed_for);
+                    }else{
+                        self.remove_from_list(account_id.clone());
+                    }
+             }
 
 
         }else{
@@ -498,7 +543,7 @@ impl Contract {
 
                 }else{
 
-                    let penalty_value = self.calculate_percentage(&save, remaining_time.clone());
+                    let penalty_value = self.calculate_percentage_transfer(&save, remaining_time.clone());
                     let new_save_amount_to_transfer = save_amount_to_transfer - penalty_value;
                     self.akiba_earnings += penalty_value;
 
@@ -550,10 +595,116 @@ impl Contract {
     }
 
     
+    // Get the total number of savers
+    pub fn get_total_savers(&self) -> usize {
+        self.savers.len()
+    }
+
+    pub fn get_total_listed(&self) -> usize {
+        self.listed.len()
+    }
+
+    // Get all savers
+    pub fn get_all_savers(&self) -> Vec<Saver> {
+
+            let mut result = self.savers.values().cloned().collect::<Vec<Saver>>();
+            
+            // Sort the vector by job_id
+            result.sort_by(|a, b| a.saver_id.cmp(&b.saver_id));
+            
+            result
+        }
+
+    pub fn get_listed_duration(&self, account_id: AccountId) -> u128{
+        self.listed_for.get(&account_id).cloned().unwrap()
+    }
+
+
+    pub fn remove_from_list(&mut self, account_id: AccountId) {
+        self.listed_for.remove(&account_id);
+        self.listed.remove(&account_id);
+    }
+    
+    // Get all savers
+
+
+    // Get all saves for a specific account
+    pub fn get_all_saves_for_account(&self, account_id: AccountId) -> Vec<Save> {
+            let mut result = Vec::new();
+            for save in self.saves.values() {
+                if save.account_id == account_id {
+                    result.push(save.clone());
+                }
+            }
+            result
+        }
+
+    // Get all saves for a specific account
+    pub fn get_all_transfer_requests_for_account(&self, account_id: AccountId) -> Vec<Save> {
+        let mut result = Vec::new();
+        for save in self.saves.values() {
+            if save.account_id == account_id && save.is_transfer {
+                result.push(save.clone());
+            }
+        }
+        result
+    }
+
+    // Get all saves for a specific account
+    pub fn get_all_rewards_for_account(&self, account_id: AccountId) -> Vec<Reward> {
+                let mut result = Vec::new();
+                for reward in self.rewards.values() {
+                    if reward.account_id == account_id {
+                        result.push(reward.clone());
+                    }
+                }
+                result
+            }
+
+    pub fn is_account_listed(&self, account_id: AccountId) -> bool {
+        match self.listed.get(&account_id) {
+            Some(value) => *value == true,
+            None => false,
+        }
+
+    }
+
+
+    pub fn disburse(&mut self){
+        let total_savers = self.get_total_savers();
+        let share = self.akiba_earnings / total_savers as u128;
+        
+        // Cloning the values to iterate over them without borrowing `self.savers` mutably
+        let savers_clone: Vec<_> = self.savers.values().cloned().collect();
+        
+        for mut saver in savers_clone {
+            if !self.is_account_listed(saver.account_id.clone()) {
+                saver.total_amount_earned += share.clone();
+                let account_id = saver.account_id.clone();
+                self.savers.insert(account_id.clone(), saver);
+                self.akiba_earnings -= share.clone();
+            }
+        }
+    }
     
 
+    #[payable]
+    pub fn withdraw_earnings(&mut self,amount:u128){
+
+        let withdraw_to = env::predecessor_account_id();
+
+        let saver = self.savers.get(&withdraw_to).cloned().unwrap();
+        
+
+        assert!(withdraw_to.clone() == saver.account_id.clone());
+
+        assert!(saver.total_amount_earned.clone() > amount.clone());
+
+        Promise::new(withdraw_to.clone()).transfer(amount.clone());
 
 
+    }
+    
 
 }
 
@@ -771,8 +922,108 @@ mod tests {
 
     }
 
+
     #[test]
-    fn test_transfer() {
+    fn test_transfer_save_after_request() {
+        
+        let mut context = get_context(accounts(0));
+        testing_env!(context.build());
+        let mut contract = Contract::new_default_meta(accounts(0).into());
+
+        let save_amount :u128= 100;
+        let save_start: u128 = 1000;
+        let save_end: u128 = 1200;
+        let account_id = env::predecessor_account_id();
+        let user = account_id.clone();
+
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .attached_deposit(MINT_STORAGE_COST + save_amount.clone())
+            .predecessor_account_id(account_id.clone())
+            .build());
+
+        let token_id = "1".to_string();
+        let token = contract.set_save(save_amount.clone(), save_start.clone(), save_end.clone());
+
+        let result = contract.get_save(1);
+
+        // Assert that the result is Some(Save)
+        assert_eq!(result.save_amount, save_amount);
+
+        assert_eq!(token.token_id, token_id);
+        assert_eq!(token.owner_id.to_string(), account_id.to_string());
+        assert_eq!(token.approved_account_ids.unwrap(), HashMap::new());
+
+        contract.request_transfer(1);
+
+
+        let result_2 = contract.get_save(1);
+
+        assert_eq!(result_2.is_transfer, true);
+
+        set_context(user.clone(),1);
+
+        contract.transfer_save(1,accounts(1),1300,0);
+
+
+        let save_result = contract.get_save(1);
+
+        // Assert that the result is Some(Save)
+        assert_eq!(save_result.account_id, accounts(1));
+
+        assert_eq!(save_result.is_transfer, false);
+
+        let savers = contract.get_total_savers();
+
+        assert_eq!(savers, 2);
+
+        let save_amount_1:u128= 200;
+        let save_start_1: u128 = 1300;
+        let save_end_1: u128 = 1600;
+        let account_id_1 = env::predecessor_account_id();
+        let user_1 = account_id_1.clone();
+
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .attached_deposit(MINT_STORAGE_COST + save_amount.clone())
+            .predecessor_account_id(account_id.clone())
+            .build());
+
+        let token_id = "2".to_string();
+        
+        let token = contract.set_save(save_amount_1.clone(), save_start_1.clone(), save_end_1.clone());
+
+        let result_3 = contract.get_save(2);
+
+        // Assert that the result is Some(Save)
+        assert_eq!(result_3.save_amount, save_amount_1);
+
+        assert_eq!(token.token_id, token_id);
+        assert_eq!(token.owner_id.to_string(), account_id.to_string());
+        assert_eq!(token.approved_account_ids.unwrap(), HashMap::new());
+
+        let saves = contract.get_all_saves_for_account(user_1.clone());
+
+        assert_eq!(vec![result_3.clone()], saves);
+
+
+        contract.request_transfer(2);
+
+        let save_result_1 = contract.get_save(2);
+
+        // Assert that the result is Some(Save)
+       
+
+        let save_transfered = contract.get_all_transfer_requests_for_account(user_1.clone());
+
+        assert_eq!(vec![save_result_1.clone()], save_transfered);
+
+
+
+    }
+
+    #[test]
+    fn test_transfer() { 
         let mut context = get_context(accounts(0));
         testing_env!(context.build());
         let mut contract = Contract::new_default_meta(accounts(0).into());
