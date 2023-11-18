@@ -12,15 +12,14 @@ import {
   OutlineLogoutIcon,
 } from '../icons'
 import { Avatar, Badge, Input, Dropdown, DropdownItem, WindmillContext,Button } from '@windmill/react-ui'
-import { connect, disconnect } from 'starknetkit'
-import { Contract, Provider,constants, provider } from 'starknet'
+
 import { formatAddress, formatChainAsNum } from "../utils/Index";
 
 
 function Header() {
   const { mode, toggleMode } = useContext(WindmillContext)
   const { toggleSidebar } = useContext(SidebarContext)
-  const {connectWallet,disconnectWallet,connection,account,address} = useContext(AkibaContext)
+
  
   const [isNotificationsMenuOpen, setIsNotificationsMenuOpen] = useState(false)
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false)
@@ -37,7 +36,7 @@ function Header() {
 
   
   const handleConnect = () => {
-    connectWallet();
+   
   };
 
   console.log('xxxxxxxxxxxxxx',address)

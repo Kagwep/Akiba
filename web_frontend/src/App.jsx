@@ -3,17 +3,26 @@ import { BrowserRouter as Router, Switch, Route, Redirect } from 'react-router-d
 import AccessibleNavigationAnnouncer from './components/AccessibleNavigationAnnouncer'
 
 const Layout = lazy(() => import('./containers/Layout'))
-const Login = lazy(() => import('./pages/Login'))
-const CreateAccount = lazy(() => import('./pages/CreateAccount'))
-const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
 
-function App() {
+
+function App({ isSignedIn, contractId, wallet }) {
   return (
     <>
       <Router>
+
         <AccessibleNavigationAnnouncer />
         <Switch>
-          <Route path="/" component={Layout} />
+          <Route
+           path="/"
+           render={(props) => (
+            <Layout
+              {...props}
+              isSignedIn={isSignedIn}
+              contractId={contractId}
+              wallet={wallet}
+            />
+          )} 
+           />
         </Switch>
       </Router>
     </>
