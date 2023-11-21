@@ -34,7 +34,8 @@ The Akiba Savings reimagines conventional saving methods by integrating them int
 
 ~~~
 ........................
-~~~
+~~
+~
 
 ## How It Works
 
