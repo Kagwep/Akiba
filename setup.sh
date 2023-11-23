@@ -8,10 +8,10 @@ BRANCH="main"
 git clone  $REPO 
 cd  Akiba/
 
-if [ -d "frontend" ]; then
+if [ -d "web_frontend" ]; then
 
   # Change directory
-  cd frontend
+  cd web_frontend
   
   # Install npm packages
   npm install

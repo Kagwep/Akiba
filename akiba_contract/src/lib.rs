@@ -604,6 +604,10 @@ impl Contract {
         self.listed.len()
     }
 
+    pub fn get_total_earnings(&self) -> u128 {
+        self.akiba_earnings
+    }
+
     // Get all savers
     pub fn get_all_savers(&self) -> Vec<Saver> {
 
