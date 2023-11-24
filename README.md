@@ -28,14 +28,7 @@ The Akiba Savings reimagines conventional saving methods by integrating them int
 
 * **Penalty and Reward Mechanism:** Users withdrawing before the scheduled end date face small penalties. Collected penalties from such instances are redistributed among users who fulfill their savings plans.
 
-## Getting Started
 
-### Installation
-
-~~~
-........................
-~~
-~
 
 ## How It Works
 
