@@ -12,7 +12,7 @@ import { ColorModeContext, useMode } from "./theme";
 import { Routes, Route } from "react-router-dom";
 import Topbar from "./scenes/global/Topbar";
 import Dashboard from "./scenes/dashboard";
-import Contacts from "./scenes/contacts";
+import Save from "./scenes/save";
 import Sidebar from "./scenes/global/Sidebar";
 import Invoices from "./scenes/invoices";
 import Form from "./scenes/form";
@@ -23,6 +23,7 @@ import Pie from "./scenes/Pie";
 import Line from "./scenes/line";
 import Geography from "./scenes/geography";
 import Main from "./scenes/main";
+import Transfers from './scenes/transfers';
 
 
 
@@ -45,7 +46,8 @@ function App({ isSignedIn, contractId, wallet }) {
               <Routes>
                 <Route path="/" element={<Dashboard isSignedIn={isSignedIn} wallet={wallet} contractId={contractId} />} />
                 <Route path="/team" element={<Team isSignedIn={isSignedIn} wallet={wallet} contractId={contractId} />} />
-                <Route path="/contacts" element={<Contacts isSignedIn={isSignedIn} wallet={wallet} contractId={contractId} />} />
+                <Route path="/save" element={<Save isSignedIn={isSignedIn} wallet={wallet} contractId={contractId} />} />
+                <Route path="/transfers" element={<Transfers isSignedIn={isSignedIn} wallet={wallet} contractId={contractId} />} />
                 <Route path="/invoices" element={<Invoices isSignedIn={isSignedIn} wallet={wallet} contractId={contractId} />} />
                 <Route path="/form" element={<Form isSignedIn={isSignedIn} wallet={wallet} contractId={contractId} />} />
                 <Route path="/calendar" element={<Calendar />} />

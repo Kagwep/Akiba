@@ -140,9 +140,9 @@ const Sidebar = ({isSignedIn, contractId, wallet }) => {
               selected={selected}
               setSelected={setSelected}
             />
-            <Item
+                        <Item
               title="Save"
-              to="/contacts"
+              to="/save"
               icon={<ContactsOutlinedIcon />}
               selected={selected}
               setSelected={setSelected}
@@ -155,6 +155,13 @@ const Sidebar = ({isSignedIn, contractId, wallet }) => {
               setSelected={setSelected}
             />
 
+            <Item
+              title="Transfers"
+              to="/transfers"
+              icon={<ContactsOutlinedIcon />}
+              selected={selected}
+              setSelected={setSelected}
+            />
             <Typography
               variant="h6"
               color={colors.grey[300]}
