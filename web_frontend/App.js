@@ -5,7 +5,7 @@ import {Route,Routes} from 'react-router-dom'
 
 
 import { Box } from "@mui/material";
-import Team from "./scenes/team";
+import Savers from "./scenes/savers";
 import { useState } from "react";
 import { CssBaseline, ThemeProvider } from "@mui/material";
 import { ColorModeContext, useMode } from "./theme";
@@ -14,8 +14,8 @@ import Topbar from "./scenes/global/Topbar";
 import Dashboard from "./scenes/dashboard";
 import Save from "./scenes/save";
 import Sidebar from "./scenes/global/Sidebar";
-import Invoices from "./scenes/invoices";
-import Form from "./scenes/form";
+import Saves from "./scenes/saves";
+import Rewards from "./scenes/rewards";
 import Calendar from "./scenes/calendar";
 import FAQ from "./scenes/faq";
 import Bar from "./scenes/bar";
@@ -45,11 +45,11 @@ function App({ isSignedIn, contractId, wallet }) {
             <Box flexGrow={1}>
               <Routes>
                 <Route path="/" element={<Dashboard isSignedIn={isSignedIn} wallet={wallet} contractId={contractId} />} />
-                <Route path="/team" element={<Team isSignedIn={isSignedIn} wallet={wallet} contractId={contractId} />} />
+                <Route path="/savers" element={<Savers isSignedIn={isSignedIn} wallet={wallet} contractId={contractId} />} />
                 <Route path="/save" element={<Save isSignedIn={isSignedIn} wallet={wallet} contractId={contractId} />} />
                 <Route path="/transfers" element={<Transfers isSignedIn={isSignedIn} wallet={wallet} contractId={contractId} />} />
-                <Route path="/invoices" element={<Invoices isSignedIn={isSignedIn} wallet={wallet} contractId={contractId} />} />
-                <Route path="/form" element={<Form isSignedIn={isSignedIn} wallet={wallet} contractId={contractId} />} />
+                <Route path="/saves" element={<Saves isSignedIn={isSignedIn} wallet={wallet} contractId={contractId} />} />
+                <Route path="/rewards" element={<Rewards isSignedIn={isSignedIn} wallet={wallet} contractId={contractId} />} />
                 <Route path="/calendar" element={<Calendar />} />
                 <Route path="/faq" element={<FAQ />} />
                 <Route path="/bar" element={<Bar />} />

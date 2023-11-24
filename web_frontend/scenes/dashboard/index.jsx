@@ -19,25 +19,71 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import SavingsIcon from '@mui/icons-material/Savings';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import WalletIcon from '@mui/icons-material/Wallet';
+import * as nearAPI from "near-api-js";
+import { utils } from 'near-api-js';
+
+
 
 const Dashboard = ({ isSignedIn, contractId, wallet }) => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
   const [total_savers,setTotalSavers] = useState(0);
+  const [savers,setSavers] = useState(0);
 	const [uiPleaseWait, setUiPleaseWait] = useState(true);
   const [total_earnings,setTotalEarnings] = useState(0);
+  const [total_amount_saved,setTotalAmountSaved] = useState(0);
+  const [bal, setBalance] = useState("");
+  const [saves, setSaves] = useState([]);
 
+  const { keyStores } = nearAPI;
+  const { connect } = nearAPI;
+  const myKeyStore = new keyStores.BrowserLocalStorageKeyStore();
 
   useEffect(() => {
   
     getTotalSavers().then(setTotalSavers);
     getTotalEarnings().then(setTotalEarnings);
+    getSavers().then(setSavers);
+
     // newConnectBalance.nearConnect().then(setAccBalance);
     // viewProfile().then((data) => (setUserProfile(data)));
   //   ;
 
+    async function handleAccount() {
+      try {
+        // Check if the user is signed in
+        if (isSignedIn) {
+          // Perform the asynchronous action
+          const nearConnection = await connect(connectionConfig);
+          const account = await nearConnection.account(wallet.accountId);
+          const balance = await account.getAccountBalance();
+          setBalance(balance);
+          getSaves().then((savesData) => {
+            // Sort saves in descending order based on ID
+            savesData.sort((a, b) => b.save_id - a.save_id);
+        
+            // Extract all saves except the latest ten
+            const firstTenSaves = savesData.slice(0, 10);
+        
+            setSaves(firstTenSaves); // Set the remaining saves except the latest ten
+        });
+        
+          // console.log("alas",balance);
+          
+          // const account_details = await account.getAccountDetails();
+          // console.log(account_details);
+          // You can add further logic here based on the result
+        } else {
+          console.log('User is not signed in.');
+        }
+      } catch (error) {
+        // Handle any errors here
+        console.error('Error performing async action:', error);
+      }
+    }
+    handleAccount();
   }
-  , []);
+  , [isSignedIn,wallet]);
 
   function getTotalSavers() {
 		console.log(contractId)
@@ -54,6 +100,53 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
 	  }
 
     console.log(total_earnings);
+
+    function getSavers() {
+      console.log(contractId)
+      return wallet.viewMethod({ method: "get_all_savers", contractId});
+    
+      }
+
+      // function getSaver() {
+      //   console.log(contractId)
+      //   return wallet.viewMethod({ method: "get_all_savers", contractId});
+      
+      //   }
+
+      console.log(total_amount_saved);
+     
+
+      const connectionConfig = {
+
+        networkId: "testnet",
+        keyStore: myKeyStore,
+        nodeUrl: "https://rpc.testnet.near.org",
+        walletUrl: "https://wallet.testnet.near.org",
+        helperUrl: "https://helper.testnet.near.org",
+        explorerUrl: "https://explorer.testnet.near.org",
+      };
+    
+    
+      
+      const near = "1000000000000000000000000";
+
+      const total_amount = Array.isArray(savers) && savers.length > 0
+        ? savers.reduce((sum, current) => sum + (current.total_saves_amount || 0), 0)
+        : 0;
+
+      console.log("object is?",total_amount);
+
+      console.log(saves);
+
+      function getSaves() {
+    
+        if (isSignedIn){
+        const account_id = wallet.accountId;
+        return wallet.viewMethod({ method: "get_all_saves_for_account", args: {account_id:account_id}, contractId });
+        }else{
+          return []
+        }
+      }
 
   return (
     <Box m="20px">
@@ -113,7 +206,9 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
                 fontWeight="600"
                 color={colors.grey[100]}
               >
-                12,361
+                <div>
+                {total_amount}
+                </div>
               </Typography>
               <Typography
                 variant="h5"
@@ -167,7 +262,7 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
                 fontWeight="600"
                 color={colors.grey[100]}
               >
-                12,361
+                {total_savers}
               </Typography>
               <Typography
                 variant="h5"
@@ -198,14 +293,23 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
                 fontWeight="600"
                 color={colors.grey[100]}
               >
-                Address
+                Account
               </Typography>
               <Typography
                 variant="h3"
                 fontWeight="bold"
                 color={colors.greenAccent[500]}
               >
-                $59,342.32
+                {isSignedIn ? (
+                  <>
+                      {wallet.accountId}
+                  </>
+                  ) : (
+                    <>
+                      <small>not signed in.</small>
+                    </>
+                    
+                  )}
               </Typography>
               <Box
               mt="25px"
@@ -219,7 +323,16 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
                 fontWeight="600"
                 color={colors.grey[100]}
               >
-                12,361
+               {isSignedIn ? (
+                  <>
+                      {(bal.available/near).toFixed(5)}  NEAR
+                  </>
+                  ) : (
+                    <>
+                      <small>...</small>
+                    </>
+                    
+                  )}
               </Typography>
               <Typography
                 variant="h5"
@@ -229,10 +342,43 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
                 Account Balance
               </Typography>
             </Box>
+            <Box
+              mt="25px"
+              
+              >
+              <WalletIcon
+                sx={{ color: colors.greenAccent[600], fontSize: "26px" }}
+              />
+              <Typography
+                variant="h3"
+                fontWeight="600"
+                color={colors.grey[100]}
+              >
+              {isSignedIn ? (
+                  <>
+                      {(bal.available/near).toFixed(5)}  NEAR
+                  </>
+                  ) : (
+                    <>
+                      <small>...</small>
+                    </>
+                    
+                  )}
+              </Typography>
+              <Typography
+                variant="h5"
+                fontWeight="bold"
+                color={colors.greenAccent[500]}
+              >
+                Your Earnings
+              </Typography>
+            </Box>
             </Box>
             
             
           </Box>
+
+          
           <Box height="230px" m="-20px 0 0 0">
             <BarChart isDashboard={true} />
           </Box>
@@ -256,9 +402,9 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
               Recent Transactions
             </Typography>
           </Box>
-          {mockTransactions.map((transaction, i) => (
+          {saves.map((save, i) => (
             <Box
-              key={`${transaction.txId}-${i}`}
+              key={`${save.save_id}-${i}`}
               display="flex"
               justifyContent="space-between"
               alignItems="center"
@@ -271,19 +417,19 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
                   variant="h5"
                   fontWeight="600"
                 >
-                  {transaction.txId}
+                  {/* {transaction.txId} */}
                 </Typography>
                 <Typography color={colors.grey[100]}>
-                  {transaction.user}
+                  {save.account_id}
                 </Typography>
               </Box>
-              <Box color={colors.grey[100]}>{transaction.date}</Box>
+              <Box color={colors.grey[100]}>{new Date(save.save_end).toLocaleString()}</Box>
               <Box
                 backgroundColor={colors.greenAccent[500]}
                 p="5px 10px"
                 borderRadius="4px"
               >
-                ${transaction.cost}
+                {save.save_amount} NEAR
               </Box>
             </Box>
           ))}

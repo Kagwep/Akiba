@@ -135,7 +135,7 @@ const Sidebar = ({isSignedIn, contractId, wallet }) => {
             </Typography>
             <Item
               title="Savers"
-              to="/team"
+              to="/savers"
               icon={<PeopleOutlinedIcon />}
               selected={selected}
               setSelected={setSelected}
@@ -149,7 +149,7 @@ const Sidebar = ({isSignedIn, contractId, wallet }) => {
             />
             <Item
               title="Saves"
-              to="/invoices"
+              to="/saves"
               icon={<ReceiptOutlinedIcon />}
               selected={selected}
               setSelected={setSelected}
@@ -170,7 +170,7 @@ const Sidebar = ({isSignedIn, contractId, wallet }) => {
             </Typography>
             <Item
               title="Rewards"
-              to="/form"
+              to="/rewards"
               icon={<PersonOutlinedIcon />}
               selected={selected}
               setSelected={setSelected}

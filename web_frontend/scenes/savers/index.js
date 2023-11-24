@@ -8,65 +8,24 @@ import LockOpenOutlinedIcon from "@mui/icons-material/LockOpenOutlined";
 import SecurityOutlinedIcon from "@mui/icons-material/SecurityOutlined";
 import Header from "../../components/Header";
 
-const Team = ({ isSignedIn, contractId, wallet }) => {
+const Savers = ({ isSignedIn, contractId, wallet }) => {
   const [savers,setSavers] = useState([]);
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
   const columns = [
-    { field: "id", headerName: "ID" },
+    { field: "account_id", headerName: "Account ID", flex: 1 },
+    { field: "saver_id", headerName: "Saver ID", flex: 1 },
     {
-      field: "name",
-      headerName: "Account",
-      flex: 1,
-      cellClassName: "name-column--cell",
-    },
-    {
-      field: "age",
-      headerName: "Savers Total Amount",
+      field: "total_saves_amount",
+      headerName: "Total Saves Amount(NEAR)",
       type: "number",
-      headerAlign: "left",
-      align: "left",
-    },
-    {
-      field: "phone",
-      headerName: "Total Amount Earned",
       flex: 1,
     },
     {
-      field: "email",
-      headerName: "Email",
+      field: "total_amount_earned",
+      headerName: "Total Amount Earned(NEAR)",
+      type: "number",
       flex: 1,
-    },
-    {
-      field: "accessLevel",
-      headerName: "Access Level",
-      flex: 1,
-      renderCell: ({ row: { access } }) => {
-        return (
-          <Box
-            width="60%"
-            m="0 auto"
-            p="5px"
-            display="flex"
-            justifyContent="center"
-            backgroundColor={
-              access === "admin"
-                ? colors.greenAccent[600]
-                : access === "manager"
-                ? colors.greenAccent[700]
-                : colors.greenAccent[700]
-            }
-            borderRadius="4px"
-          >
-            {access === "admin" && <AdminPanelSettingsOutlinedIcon />}
-            {access === "manager" && <SecurityOutlinedIcon />}
-            {access === "user" && <LockOpenOutlinedIcon />}
-            <Typography color={colors.grey[100]} sx={{ ml: "5px" }}>
-              {access}
-            </Typography>
-          </Box>
-        );
-      },
     },
   ];
 
@@ -81,6 +40,7 @@ const Team = ({ isSignedIn, contractId, wallet }) => {
   , []);
 
   function getSavers() {
+    
 		console.log(contractId)
 		return wallet.viewMethod({ method: "get_all_savers", contractId});
 	
@@ -88,6 +48,13 @@ const Team = ({ isSignedIn, contractId, wallet }) => {
 
 
   console.log(savers)
+
+  // Assuming savers is an array of objects fetched from your API
+const saversWithId = savers.map((saver) => ({
+  ...saver,
+  id: saver.saver_id.toString(), // Assuming saver_id is numeric, convert it to string
+}));
+
 
   return (
     <Box m="20px">
@@ -121,10 +88,12 @@ const Team = ({ isSignedIn, contractId, wallet }) => {
           },
         }}
       >
-        <DataGrid checkboxSelection rows={mockDataTeam} columns={columns} />
+        <DataGrid checkboxSelection rows={saversWithId} columns={columns} />
       </Box>
     </Box>
   );
 };
 
-export default Team;
+export default Savers;
+
+

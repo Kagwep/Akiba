@@ -8,7 +8,7 @@ import { DemoContainer } from '@mui/x-date-pickers/internals/demo';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-
+import { utils } from 'near-api-js';
 
 const Save = ({ isSignedIn, contractId, wallet }) => {
   const isNonMobile = useMediaQuery("(min-width:600px)");
@@ -34,11 +34,11 @@ const Save = ({ isSignedIn, contractId, wallet }) => {
 
         const deposit = saveAmountInt + nearValue;
 
-        const depositYoctoNear = deposit * Math.pow(10, 24);
+       
+        const depositStr = deposit.toString();
+        const to_deposit = utils.format.parseNearAmount(depositStr);
 
-        deposit = utils.format.parseNearAmount(deposit);
-
-        console.log("The deposit is",deposit);
+        console.log("The deposit is",to_deposit);
 
         wallet
           .callMethod({
@@ -49,7 +49,7 @@ const Save = ({ isSignedIn, contractId, wallet }) => {
               save_end: saveEndMilliseconds,
             },
             contractId: contractId,
-            deposit: deposit
+            deposit: to_deposit
           })
           .then(async () => {
             setShowSuccessAlert(true);
