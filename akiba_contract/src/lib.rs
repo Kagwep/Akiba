@@ -66,6 +66,7 @@ pub struct Contract {
     listed:HashMap<AccountId, bool>,
     listed_for:HashMap<AccountId, u128>,
     key_count:u128,
+    disburse_timestamp: u64,
 }
 
 
@@ -129,6 +130,7 @@ impl Contract {
             listed:HashMap::new(),
             listed_for:HashMap::new(),
             key_count:0,
+            disburse_timestamp:env::block_timestamp(),
 
 
 
@@ -264,15 +266,19 @@ impl Contract {
         self.saves.get(&save_id).unwrap()
     }
 
+    pub fn get_saver(&self, account_id: AccountId) -> &Saver {
+        self.savers.get(&account_id).unwrap()
+    }
+
     // Function to calculate the percentage based on remaining time
     pub fn calculate_percentage(&self, save: &Save, remaining_time: u128) -> u128 {
-        let remaining_days = remaining_time / (60 * 60 * 24);
+        let remaining_days = remaining_time as f64 / (60 * 60 * 24 * 1000) as f64;
 
-        if remaining_days > 0 && remaining_days < 2 {
+        if remaining_days > 0.0 && remaining_days < 2.0 {
             (0.01 * save.save_amount as f64) as u128
-        } else if remaining_days >= 2 && remaining_days < 10 {
+        } else if remaining_days >= 2.0 && remaining_days < 10.0 {
             (0.02 * save.save_amount as f64) as u128
-        } else if remaining_days >= 10 && remaining_days < 30 {
+        } else if remaining_days >= 10.0 && remaining_days < 30.0 {
             (0.03 * save.save_amount as f64) as u128
         } else {
             (0.05 * save.save_amount as f64) as u128
@@ -280,13 +286,13 @@ impl Contract {
     }
 
     pub fn calculate_percentage_transfer(&self, save: &Save, remaining_time: u128) -> u128 {
-        let remaining_days = remaining_time / (60 * 60 * 24);
+        let remaining_days = remaining_time as f64 / (60 * 60 * 24 * 1000) as f64 ;
 
-        if remaining_days > 0 && remaining_days < 2 {
+        if remaining_days > 0.0 && remaining_days < 2.0 {
             (0.005 * save.save_amount as f64) as u128
-        } else if remaining_days >= 2 && remaining_days < 10 {
+        } else if remaining_days >= 2.0 && remaining_days < 10.0 {
             (0.01 * save.save_amount as f64) as u128
-        } else if remaining_days >= 10 && remaining_days < 30 {
+        } else if remaining_days >= 10.0 && remaining_days < 30.0 {
             (0.015 * save.save_amount as f64) as u128
         } else {
             (0.025 * save.save_amount as f64) as u128
@@ -566,7 +572,7 @@ impl Contract {
 
             }else{
 
-                let penalty_value = self.calculate_percentage(&save, remaining_time.clone());
+                let penalty_value = self.calculate_percentage_transfer(&save, remaining_time.clone());
                 let new_save_amount_to_transfer = save_amount_to_transfer - penalty_value;
                 self.akiba_earnings += penalty_value;
 
@@ -611,6 +617,7 @@ impl Contract {
     pub fn get_total_listed(&self) -> usize {
         self.listed.len()
     }
+
 
     pub fn get_total_earnings(&self) -> u128 {
         self.akiba_earnings
@@ -680,25 +687,43 @@ impl Contract {
         }
 
     }
+    
 
 
     pub fn disburse(&mut self){
-        let total_savers = self.get_total_savers();
-        let share = self.akiba_earnings / total_savers as u128;
-        
-        // Cloning the values to iterate over them without borrowing `self.savers` mutably
-        let savers_clone: Vec<_> = self.savers.values().cloned().collect();
-        
-        for mut saver in savers_clone {
-            if !self.is_account_listed(saver.account_id.clone()) {
-                saver.total_amount_earned += share.clone();
-                let account_id = saver.account_id.clone();
-                self.savers.insert(account_id.clone(), saver);
-                self.akiba_earnings -= share.clone();
-            }
+        let total_savers_disburse = self.get_total_savers() - self.get_total_listed();
+
+            if self.akiba_earnings > 0 {
+                let share = self.akiba_earnings / total_savers_disburse as u128;
+                
+                // Cloning the values to iterate over them without borrowing `self.savers` mutably
+                let savers_clone: Vec<_> = self.savers.values().cloned().collect();
+                
+                for mut saver in savers_clone {
+                    if !self.is_account_listed(saver.account_id.clone()) {
+                        saver.total_amount_earned += share.clone();
+                        let account_id = saver.account_id.clone();
+                        self.savers.insert(account_id.clone(), saver);
+                        self.akiba_earnings -= share.clone();
+                    }
+                }
         }
     }
-    
+
+    pub fn check_and_disburse(&mut self) -> Option<u64> {
+        let current_timestamp = env::block_timestamp();
+        let thirty_days_in_nanos: u64 = 30 * 24 * 60 * 60 * 1_000_000_000; // 30 days in nanoseconds
+        
+        if current_timestamp >= self.disburse_timestamp + thirty_days_in_nanos {
+            self.disburse();
+            self.disburse_timestamp = env::block_timestamp(); // Update disburse_timestamp to current time
+            return Some(0);
+        }else {
+            let remaining_time = self.disburse_timestamp + thirty_days_in_nanos - current_timestamp;
+            let remaining_days = remaining_time / (24 * 60 * 60 * 1_000_000_000); // Convert remaining nanoseconds to days
+            return Some(remaining_days);
+        }
+    }
 
     #[payable]
     pub fn withdraw_earnings(&mut self,amount:u128){
@@ -741,6 +766,7 @@ mod tests {
     use super::*;
 
     const MINT_STORAGE_COST: u128 = 5870000000000000000000;
+    const NEAR_TO_YOCTO: u128 = 1_000_000_000_000_000_000_000_000;
 
     fn get_context(predecessor_account_id: AccountId) -> VMContextBuilder {
         let mut builder = VMContextBuilder::new();
@@ -826,9 +852,12 @@ mod tests {
         let save_end: u128 = 1200;
         let account_id = env::predecessor_account_id();
 
+        let save_amount_yocto = save_amount.checked_mul(NEAR_TO_YOCTO).expect("Overflow in conversion");
+
+
         testing_env!(context
             .storage_usage(env::storage_usage())
-            .attached_deposit(MINT_STORAGE_COST + save_amount.clone())
+            .attached_deposit(MINT_STORAGE_COST + save_amount_yocto.clone())
             .predecessor_account_id(accounts(0))
             .build());
 
@@ -837,8 +866,13 @@ mod tests {
 
         let result = contract.get_save(1);
 
+        let saver = contract.get_saver(account_id.clone());
+
+        assert_eq!(saver.total_saves_amount,save_amount_yocto.clone());
+        assert_eq!(saver.total_amount_earned,0);
+
         // Assert that the result is Some(Save)
-        assert_eq!(result.save_amount, save_amount);
+        assert_eq!(result.save_amount, save_amount_yocto);
 
         assert_eq!(token.token_id, token_id);
         assert_eq!(token.owner_id.to_string(), account_id.to_string());
@@ -857,9 +891,12 @@ mod tests {
         let account_id = env::predecessor_account_id();
         let user = account_id.clone();
 
+        let save_amount_yocto = save_amount.checked_mul(NEAR_TO_YOCTO).expect("Overflow in conversion");
+
+
         testing_env!(context
             .storage_usage(env::storage_usage())
-            .attached_deposit(MINT_STORAGE_COST + save_amount.clone())
+            .attached_deposit(MINT_STORAGE_COST + save_amount_yocto.clone())
             .predecessor_account_id(account_id.clone())
             .build());
 
@@ -869,7 +906,7 @@ mod tests {
         let result = contract.get_save(1);
 
         // Assert that the result is Some(Save)
-        assert_eq!(result.save_amount, save_amount);
+        assert_eq!(result.save_amount, save_amount_yocto);
 
         assert_eq!(token.token_id, token_id);
         assert_eq!(token.owner_id.to_string(), account_id.to_string());
@@ -897,14 +934,17 @@ mod tests {
         let mut contract = Contract::new_default_meta(accounts(0).into());
 
         let save_amount :u128= 100;
-        let save_start: u128 = 1000;
-        let save_end: u128 = 1200;
+        let save_start: u128 = 1700945720277;
+        let save_end: u128 = 1700945788925;
         let account_id = env::predecessor_account_id();
         let user = account_id.clone();
 
+        let save_amount_yocto = save_amount.checked_mul(NEAR_TO_YOCTO).expect("Overflow in conversion");
+
+
         testing_env!(context
             .storage_usage(env::storage_usage())
-            .attached_deposit(MINT_STORAGE_COST + save_amount.clone())
+            .attached_deposit(MINT_STORAGE_COST + save_amount_yocto.clone())
             .predecessor_account_id(account_id.clone())
             .build());
 
@@ -914,7 +954,7 @@ mod tests {
         let result = contract.get_save(1);
 
         // Assert that the result is Some(Save)
-        assert_eq!(result.save_amount, save_amount);
+        assert_eq!(result.save_amount, save_amount_yocto.clone());
 
         assert_eq!(token.token_id, token_id);
         assert_eq!(token.owner_id.to_string(), account_id.to_string());
@@ -922,14 +962,36 @@ mod tests {
 
         set_context(user.clone(),1);
 
-        contract.transfer_save(1,accounts(1),1300,0);
+        contract.transfer_save(1,accounts(1),1700945748525,0);
 
 
         let save_result = contract.get_save(1);
 
         // Assert that the result is Some(Save)
-        assert_eq!(save_result.account_id, accounts(1));
+        assert_eq!(save_result.account_id.clone(), accounts(1));
 
+ 
+
+        let calc_earnings = (0.005 * save_amount_yocto as f64) as u128;
+        
+
+        let akiba_earnings = contract.get_total_earnings();
+
+        assert_eq!(akiba_earnings,calc_earnings.clone() as u128);
+
+        let check_dis = contract.check_and_disburse();
+
+        assert_eq!(check_dis,Some(30));
+
+        contract.disburse();
+
+
+        let saver  = contract.get_saver(accounts(1));
+
+        assert_eq!(saver.total_amount_earned,calc_earnings.clone() as u128);
+
+
+       
 
 
     }
@@ -948,9 +1010,12 @@ mod tests {
         let account_id = env::predecessor_account_id();
         let user = account_id.clone();
 
+        let save_amount_yocto = save_amount.checked_mul(NEAR_TO_YOCTO).expect("Overflow in conversion");
+
+
         testing_env!(context
             .storage_usage(env::storage_usage())
-            .attached_deposit(MINT_STORAGE_COST + save_amount.clone())
+            .attached_deposit(MINT_STORAGE_COST + save_amount_yocto.clone())
             .predecessor_account_id(account_id.clone())
             .build());
 
@@ -960,7 +1025,7 @@ mod tests {
         let result = contract.get_save(1);
 
         // Assert that the result is Some(Save)
-        assert_eq!(result.save_amount, save_amount);
+        assert_eq!(result.save_amount, save_amount_yocto);
 
         assert_eq!(token.token_id, token_id);
         assert_eq!(token.owner_id.to_string(), account_id.to_string());
@@ -995,9 +1060,11 @@ mod tests {
         let account_id_1 = env::predecessor_account_id();
         let user_1 = account_id_1.clone();
 
+        let save_amount_yocto_1 = save_amount_1.checked_mul(NEAR_TO_YOCTO).expect("Overflow in conversion");
+
         testing_env!(context
             .storage_usage(env::storage_usage())
-            .attached_deposit(MINT_STORAGE_COST + save_amount.clone())
+            .attached_deposit(MINT_STORAGE_COST + save_amount_yocto_1.clone())
             .predecessor_account_id(account_id.clone())
             .build());
 
@@ -1008,7 +1075,7 @@ mod tests {
         let result_3 = contract.get_save(2);
 
         // Assert that the result is Some(Save)
-        assert_eq!(result_3.save_amount, save_amount_1);
+        assert_eq!(result_3.save_amount, save_amount_yocto_1);
 
         assert_eq!(token.token_id, token_id);
         assert_eq!(token.owner_id.to_string(), account_id.to_string());
