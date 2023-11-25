@@ -1,5 +1,5 @@
 import React,{useState,useEffect} from 'react';
-import { Box,Typography } from "@mui/material";
+import { Box,Typography, Modal,Button,TextField,Snackbar,Alert } from "@mui/material";
 import { DataGrid, GridToolbar } from "@mui/x-data-grid";
 import { tokens } from "../../theme";
 import { mockDataContacts } from "../../data/mockData";
@@ -7,10 +7,36 @@ import Header from "../../components/Header";
 import { useTheme } from "@mui/material";
 import SwipeRightAltIcon from '@mui/icons-material/SwipeRightAlt';
 import { IconButton } from "@mui/material";
+import { Formik } from "formik";
+import * as yup from "yup";
+import useMediaQuery from "@mui/material/useMediaQuery";
+
+const style = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 400,
+  bgcolor: 'background.paper',
+  border: '2px solid #000',
+  boxShadow: 24,
+  p: 4,
+};
 
 const Transfers = ({ isSignedIn, contractId, wallet }) => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
+
+  const [open, setOpen] = React.useState(false);
+  const handleOpen = () => setOpen(true);
+  const handleClose = () => setOpen(false);
+  const [rewards, setRewards] = useState([]);
+
+  const [saver_obj, setSaverObj] = useState("");
+  const isNonMobile = useMediaQuery("(min-width:600px)");
+
+  const [uiPleaseWait, setUiPleaseWait] = useState(true);
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
 
   const columns = [
     { field: "save_id", headerName: "Save ID", flex: 1 },
@@ -44,11 +70,15 @@ const Transfers = ({ isSignedIn, contractId, wallet }) => {
       // Similar to start date, format this date as needed
     },
     {
-      field: "withdraw",
-      headerName: "Accept",
+      field: "transfer_to",
+      headerName: "Transfer To",
       flex: 1,
-      renderCell: () => (
-        <IconButton>
+      renderCell: (params) => (
+        <IconButton 
+        onClick={() => {
+          handleOpen();
+          setSaverObj(params.row);
+          }}>
           <SwipeRightAltIcon />
         </IconButton>
       ),
@@ -94,12 +124,104 @@ const Transfers = ({ isSignedIn, contractId, wallet }) => {
   });
   
 
+  function getRewards() {
+    
+    if (isSignedIn){
+    const account_id = wallet.accountId;
+    return wallet.viewMethod({ method: "get_all_rewards_for_account", args: {account_id:account_id}, contractId });
+    } else{
+      return []
+    }
+
+  }
+
+  const handleTransferSaveAccept = (values) => {
+    if (isSignedIn) {
+      // Check for both conditions before submitting
+      if (
+        values.transferToAccount !== "" && saver_obj !== "" && saver_obj !== undefined
+      ) {
+
+  
+        const presentDayMilliseconds = Date.now(); // Get present day in milliseconds
+
+
+        const getFirstUnredeemedRewardId = (rewards) => {
+          if (rewards.length > 0) {
+            const unredeemedReward = rewards.find((reward) => !reward.redeemed);
+            if (unredeemedReward) {
+              return unredeemedReward.reward_id;
+            }
+          }
+          return 0;
+        };
+    
+    
+        const firstUnredeemedRewardId = getFirstUnredeemedRewardId(rewards);
+
+        console.log("here ",values.transferToAccount);
+
+        wallet
+          .callMethod({
+            method: "transfer_save",
+            args: {
+              save_id: saver_obj.save_id,
+              transfer_to: values.transferToAccount,
+              end_date: presentDayMilliseconds,
+              reward_id:firstUnredeemedRewardId,
+            },
+            contractId: contractId,
+            deposit:1
+          })
+          .then(async () => {
+            setShowSuccessAlert(true);
+          })
+          .then((savesData) => {
+            // Filter out inactive saves
+            const activeTransfers = savesData.filter((save) => save.is_save_active && save.is_transfer );
+        
+            setTransfers(activeTransfers);
+          })
+          .finally(() => {
+            setUiPleaseWait(false);
+            handleClose();
+          });
+
+      } else {
+        console.log("Form is invalid");
+        // Optionally, display error messages or prevent submission
+      }
+    } else {
+      setShowAlert(true); // Show alert if not signed in
+    }
+  };
+
+  console.log("The obj",saver_obj);
+
+  const handleCloseAlert = (event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setShowSuccessAlert(false);
+  };
+
+
   return (
     <Box m="20px">
       <Header
         title="Transfers"
         subtitle="transfer save"
       />
+      <Snackbar
+        open={showSuccessAlert}
+        autoHideDuration={6000}
+        onClose={handleCloseAlert}
+        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+      >
+        <Alert onClose={handleCloseAlert} severity="success">
+          Save added successfully!
+        </Alert>
+      </Snackbar>
       <Box
         m="40px 0 0 0"
         height="75vh"
@@ -138,8 +260,91 @@ const Transfers = ({ isSignedIn, contractId, wallet }) => {
           components={{ Toolbar: GridToolbar }}
         />
       </Box>
+      <Modal
+        open={open}
+        onClose={
+          ()=> {
+            handleClose();
+            setSaverObj("");
+          }
+        }
+        aria-labelledby="modal-modal-title"
+        aria-describedby="modal-modal-description"
+      >
+        <Box sx={style}>
+          <Typography id="modal-modal-title" variant="h6" component="h2">
+            Transfer to
+          </Typography>
+          <Typography id="modal-modal-description" sx={{ mt: 2 }} color="green">
+            Please make sure the account Id is correct.
+            <Typography color="red">  This process is not reversable</Typography>
+          </Typography>
+          <Formik
+        onSubmit={handleTransferSaveAccept}
+        initialValues={initialValues}
+        validationSchema={checkoutSchema}
+      >
+        {({
+          values,
+          errors,
+          touched,
+          handleBlur,
+          handleChange,
+          handleSubmit,
+        }) => (
+          <form onSubmit={handleSubmit}>
+            <Box
+              display="grid"
+              gap="30px"
+              gridTemplateColumns="repeat(4, minmax(0, 1fr))"
+              sx={{
+                "& > div": { gridColumn: isNonMobile ? undefined : "span 4" },
+              }}
+            >
+              <TextField
+                fullWidth
+                variant="filled"
+                type="text"
+                label="Account Id"
+                onBlur={handleBlur}
+                onChange={handleChange}
+                value={values.transferToAccount} // Corrected property name
+                name="transferToAccount"
+                error={!!touched.transferToAccount && !!errors.transferToAccount}
+                helperText={touched.transferToAccount && errors.transferToAccount}
+                sx={{ gridColumn: "span 3" }}
+              />
+
+            </Box>
+            <Box display="flex" justifyContent="end" mt="20px">
+              <Button type="submit" color="secondary" variant="contained">
+                Submit
+              </Button>
+            </Box>
+          </form>
+        )}
+      </Formik>
+        </Box>
+      </Modal>
     </Box>
   );
+};
+
+const checkoutSchema = yup.object().shape({
+  transferToAccount: yup
+    .string()
+    .required("required")
+    .test(
+      "validAccount",
+      "Invalid account format. It should end with '.testnet' or '.near' (e.g., 'user.testnet', 'user.near')",
+      (value) =>
+        /^(?=.*(\.testnet|\.near))(?!.*\s).*$/.test(value)
+    ),
+});
+
+const initialValues = {
+  transferToAccount: "",
+ 
 };
 
 export default Transfers;

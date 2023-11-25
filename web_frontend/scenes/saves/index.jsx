@@ -11,13 +11,16 @@ import { utils } from 'near-api-js';
 
 
 const Saves = ({ isSignedIn, contractId, wallet }) => {
+
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
   const [saves, setSaves] = useState([]);
   const [rewards, setRewards] = useState([]);
   const [uiPleaseWait, setUiPleaseWait] = useState(true);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+
   const columns = [
+    
     { field: "save_id", headerName: "Save ID", flex: 1 },
     {
       field: "account_id",
