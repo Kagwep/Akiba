@@ -86,7 +86,6 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
   , [isSignedIn,wallet]);
 
   function getTotalSavers() {
-		console.log(contractId)
 		return wallet.viewMethod({ method: "get_total_savers", contractId});
 	
 	  }
@@ -94,7 +93,7 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
   console.log(total_savers);
 
   function getTotalEarnings() {
-		console.log(contractId)
+		
 		return wallet.viewMethod({ method: "get_total_earnings", contractId});
 	
 	  }
@@ -102,7 +101,6 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
     console.log(total_earnings);
 
     function getSavers() {
-      console.log(contractId)
       return wallet.viewMethod({ method: "get_all_savers", contractId});
     
       }

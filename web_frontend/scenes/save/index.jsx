@@ -54,7 +54,7 @@ const Save = ({ isSignedIn, contractId, wallet }) => {
           .then(async () => {
             setShowSuccessAlert(true);
           })
-          .then(setJobs)
+          .then(setSaves)
           .finally(() => {
             setUiPleaseWait(false);
           });

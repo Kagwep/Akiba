@@ -1,5 +1,5 @@
 import React,{useState,useEffect} from 'react';
-import { Box, Typography, useTheme } from "@mui/material";
+import { Box, Typography, useTheme,Snackbar,Alert } from "@mui/material";
 import { DataGrid, GridToolbar } from "@mui/x-data-grid";
 import { tokens } from "../../theme";
 import { mockDataInvoices } from "../../data/mockData";
@@ -7,12 +7,16 @@ import Header from "../../components/Header";
 import TransferWithinAStationOutlinedIcon from "@mui/icons-material/TransferWithinAStationOutlined";
 import MoneyOffOutlinedIcon from "@mui/icons-material/MoneyOffOutlined";
 import { IconButton } from "@mui/material";
+import { utils } from 'near-api-js';
 
 
 const Saves = ({ isSignedIn, contractId, wallet }) => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
   const [saves, setSaves] = useState([]);
+  const [rewards, setRewards] = useState([]);
+  const [uiPleaseWait, setUiPleaseWait] = useState(true);
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const columns = [
     { field: "save_id", headerName: "Save ID", flex: 1 },
     {
@@ -48,8 +52,8 @@ const Saves = ({ isSignedIn, contractId, wallet }) => {
       field: "transfer",
       headerName: "Transfer",
       flex: 1,
-      renderCell: () => (
-        <IconButton>
+      renderCell: (params) => (
+        <IconButton onClick={() => handleTransferSaveRequest(params.row)}>
           <TransferWithinAStationOutlinedIcon />
         </IconButton>
       ),
@@ -58,8 +62,8 @@ const Saves = ({ isSignedIn, contractId, wallet }) => {
       field: "withdraw",
       headerName: "Withdraw",
       flex: 1,
-      renderCell: () => (
-        <IconButton>
+      renderCell: (params) => (
+        <IconButton onClick={() => handleWithdrawSave(params.row)}>
           <MoneyOffOutlinedIcon />
         </IconButton>
       ),
@@ -70,10 +74,17 @@ const Saves = ({ isSignedIn, contractId, wallet }) => {
     if (isSignedIn){
     getSaves().then((savesData) => {
       // Filter out inactive saves
-      const activeSaves = savesData.filter((save) => save.is_save_active );
+      const activeSaves = savesData.filter((save) => save.is_save_active && !save.is_transfer);
   
       setSaves(activeSaves);
     });
+
+    getRewards().then((rewardsData) => {
+      const activeRewards = rewardsData.filter((reward) => reward.reward_type == "Amnesty");
+
+      setRewards(activeRewards);
+    });
+
   }
   }, []);
 
@@ -82,6 +93,17 @@ const Saves = ({ isSignedIn, contractId, wallet }) => {
     if (isSignedIn){
     const account_id = wallet.accountId;
     return wallet.viewMethod({ method: "get_all_saves_for_account", args: {account_id:account_id}, contractId });
+    } else{
+      return []
+    }
+
+  }
+
+  function getRewards() {
+    
+    if (isSignedIn){
+    const account_id = wallet.accountId;
+    return wallet.viewMethod({ method: "get_all_rewards_for_account", args: {account_id:account_id}, contractId });
     } else{
       return []
     }
@@ -102,11 +124,104 @@ const Saves = ({ isSignedIn, contractId, wallet }) => {
   
     return formattedSave;
   });
+
+  const handleTransferSaveRequest = (saveObj) => {
+    // Perform actions for save using the entire object passed
+    console.log("Save button clicked with save object:", saveObj);
+    // For example, you can call a function and pass saveObj as an argument
+    // myFunction(saveObj);
+    if (isSignedIn){
+
+      wallet
+      .callMethod({
+        method: "request_transfer",
+        args: {
+          save_id: saveObj.save_id,
+        },
+        contractId: contractId
+      })
+      .then(async () => {
+        setShowSuccessAlert(true);
+        return  getSaves();
+      })
+      .then(setSaves)
+      .finally(() => {
+        setUiPleaseWait(false);
+      });
+
+    }else{
+        console.log("User is not signed in");
+    }
+
+  };
   
+  const handleWithdrawSave = (saveObj) => {
+    // Perform actions for save using the entire object passed
+    console.log("Save button clicked with save object:", saveObj);
+    // For example, you can call a function and pass saveObj as an argument
+    // myFunction(saveObj);
+
+    const getFirstUnredeemedRewardId = (rewards) => {
+      if (rewards.length > 0) {
+        const unredeemedReward = rewards.find((reward) => !reward.redeemed);
+        if (unredeemedReward) {
+          return unredeemedReward.reward_id;
+        }
+      }
+      return 0;
+    };
+
+
+    const firstUnredeemedRewardId = getFirstUnredeemedRewardId(rewards);
+
+    const presentDayMilliseconds = Date.now(); // Get present day in milliseconds
+
+    if (isSignedIn){
+      wallet
+      .callMethod({
+        method: "withdraw",
+        args: {
+          save_id: saveObj.save_id,
+          end_date:presentDayMilliseconds,
+          reward_id:firstUnredeemedRewardId
+        },
+        contractId: contractId,
+        deposit:1
+      })
+      .then(async () => {
+        setShowSuccessAlert(true);
+        return  getSaves();
+      })
+      .then(setSaves)
+      .finally(() => {
+        setUiPleaseWait(false);
+      });
+    }else{
+        console.log("User is not signed in");
+    }
+
+  };
+  
+  const handleCloseAlert = (event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setShowSuccessAlert(false);
+  };
 
   return (
     <Box m="20px">
       <Header title="Saves" subtitle="All saves" />
+      <Snackbar
+        open={showSuccessAlert}
+        autoHideDuration={6000}
+        onClose={handleCloseAlert}
+        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+      >
+        <Alert onClose={handleCloseAlert} severity="success">
+          Save added successfully!
+        </Alert>
+      </Snackbar>
       <Box
         m="40px 0 0 0"
         height="75vh"
