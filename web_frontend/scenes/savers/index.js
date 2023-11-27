@@ -50,10 +50,25 @@ const Savers = ({ isSignedIn, contractId, wallet }) => {
   console.log(savers)
 
   // Assuming savers is an array of objects fetched from your API
-const saversWithId = savers.map((saver) => ({
-  ...saver,
-  id: saver.saver_id.toString(), // Assuming saver_id is numeric, convert it to string
-}));
+const saversWithId = savers.map((saver) => {
+
+  const near = "1000000000000000000000000";
+
+  const formattedSaver = {
+    ...saver,
+    id: saver.saver_id.toString(),
+  };
+
+  formattedSaver.total_saves_amount = (saver.total_saves_amount/near).toFixed(5);
+  formattedSaver.total_amount_earned = (saver.total_amount_earned/near).toFixed(5);
+
+  
+
+  return formattedSaver;
+
+});
+
+
 
 
   return (

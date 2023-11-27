@@ -1,5 +1,5 @@
 import React,{useState,useEffect} from 'react';
-import { Box, Button, IconButton, Typography, useTheme } from "@mui/material";
+import { Box, Button, IconButton, Typography, useTheme, Modal,TextField } from "@mui/material";
 import { tokens } from "../../theme";
 import { mockTransactions } from "../../data/mockData";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
@@ -21,7 +21,21 @@ import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import WalletIcon from '@mui/icons-material/Wallet';
 import * as nearAPI from "near-api-js";
 import { utils } from 'near-api-js';
+import Paper from '@mui/material/Paper';
+import Stack from '@mui/material/Stack';
+import { styled } from '@mui/material/styles';
 
+const style = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 400,
+  bgcolor: 'background.paper',
+  border: '2px solid #000',
+  boxShadow: 24,
+  p: 4,
+};
 
 
 const Dashboard = ({ isSignedIn, contractId, wallet }) => {
@@ -34,6 +48,11 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
   const [total_amount_saved,setTotalAmountSaved] = useState(0);
   const [bal, setBalance] = useState("");
   const [saves, setSaves] = useState([]);
+  const [saver, setSaver] = useState("");
+  const [open, setOpen] = React.useState(false);
+  const handleOpen = () => setOpen(true);
+  const handleClose = () => setOpen(false);
+  const [amount, setAmount] = useState('');
 
   const { keyStores } = nearAPI;
   const { connect } = nearAPI;
@@ -44,7 +63,8 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
     getTotalSavers().then(setTotalSavers);
     getTotalEarnings().then(setTotalEarnings);
     getSavers().then(setSavers);
-
+    getSaver().then(setSaver);
+    checkAndDisburse();
     // newConnectBalance.nearConnect().then(setAccBalance);
     // viewProfile().then((data) => (setUserProfile(data)));
   //   ;
@@ -145,6 +165,51 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
           return []
         }
       }
+  
+      function getSaver() {
+    
+        if (isSignedIn){
+        const account_id = wallet.accountId;
+        return wallet.viewMethod({ method: "get_saver", args: {account_id:account_id}, contractId });
+        }else{
+          return []
+        }
+      }
+
+      function checkAndDisburse() {
+        return wallet.callMethod({ method: "check_and_disburse", contractId });
+      }
+
+      const handleWithdraw = (amount) => {
+        // Your logic to trigger the withdraw method with the specified amount
+        console.log(`Withdraw method called with amount: ${amount}`);
+        // Call the withdraw method with the specified amount or perform actions accordingly
+
+        if (saver.total_amount_earned > 0){
+
+          wallet
+          .callMethod({
+            method: "withdraw_earnings",
+            args: {
+              amount: amount,
+            },
+            contractId: contractId
+          })
+          .then(async () => {
+            setShowSuccessAlert(true);
+          })
+          .finally(() => {
+            setUiPleaseWait(false);
+          });
+        } 
+
+      };
+
+      const handleSubmit = () => {
+        // Call the withdraw function with the entered amount
+        handleWithdraw(amount);
+        handleClose();
+      };
 
   return (
     <Box m="20px">
@@ -205,7 +270,7 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
                 color={colors.grey[100]}
               >
                 <div>
-                {total_amount}
+                {(total_amount/near).toFixed(5)}
                 </div>
               </Typography>
               <Typography
@@ -233,7 +298,7 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
                 fontWeight="600"
                 color={colors.grey[100]}
               >
-                {total_earnings}
+                {(total_earnings/near).toFixed(5)}
               </Typography>
               <Typography
                 variant="h5"
@@ -241,7 +306,9 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
                 color={colors.greenAccent[500]}
               >
                 Akiba Earnings Balance
+                
               </Typography>
+              
             </Box>
         </Box>
         <Box
@@ -274,7 +341,7 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
 
         {/* ROW 2 */}
         <Box
-          gridColumn="span 8"
+          gridColumn="span 6"
           gridRow="span 2"
           backgroundColor={colors.primary[400]}
         >
@@ -354,7 +421,15 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
               >
               {isSignedIn ? (
                   <>
-                      {(bal.available/near).toFixed(5)}  NEAR
+                      
+                      <Stack direction="row" spacing={3}>
+                
+                        {(saver.total_amount_earned/near).toFixed(5)}  NEAR
+                    
+                      <Button variant="contained" color="primary" onClick={ handleOpen} >
+                                  Withdraw {/* Display the default amount or provide a value */}
+                      </Button>
+                      </Stack>
                   </>
                   ) : (
                     <>
@@ -383,7 +458,7 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
           
         </Box>
         <Box
-          gridColumn="span 4"
+          gridColumn="span 6"
           gridRow="span 2"
           backgroundColor={colors.primary[400]}
           overflow="auto"
@@ -427,12 +502,57 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
                 p="5px 10px"
                 borderRadius="4px"
               >
-                {save.save_amount} NEAR
+                {(save.save_amount/near).toFixed(5)} NEAR
               </Box>
             </Box>
           ))}
         </Box>
       </Box>
+      <Modal
+        open={open}
+        onClose={
+          ()=> {
+            handleClose();
+          }
+        }
+        aria-labelledby="modal-modal-title"
+        aria-describedby="modal-modal-description"
+      >
+        <Box sx={style}>
+          <Typography id="modal-modal-title" variant="h6" component="h2">
+            Amount
+            
+          </Typography>
+          
+          <Typography>
+        {saver.total_amount_earned <= 0 ? (
+          <Typography color="red"> No amount to withdraw </Typography>
+        ) : (
+          <div>
+            <TextField
+              type='number'
+              label="Enter Amount"
+              variant="outlined"
+              fullWidth
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              sx={{ mt: 2 }}
+            />
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleSubmit}
+              sx={{ mt: 2 }}
+            >
+              Withdraw
+            </Button>
+          </div>
+        )}
+      </Typography>
+
+        </Box>
+      </Modal>
+
     </Box>
   );
 };

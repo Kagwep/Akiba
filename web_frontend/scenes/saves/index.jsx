@@ -116,6 +116,7 @@ const Saves = ({ isSignedIn, contractId, wallet }) => {
   console.log(saves);
 
   const savesWithId = saves.map((save) => {
+    const near = "1000000000000000000000000";
     const formattedSave = {
       ...save,
       id: save.save_id.toString(),
@@ -124,6 +125,7 @@ const Saves = ({ isSignedIn, contractId, wallet }) => {
     // Convert milliseconds to human-readable date for start and end dates
     formattedSave.save_start = new Date(save.save_start).toLocaleString(); // Modify date format as needed
     formattedSave.save_end = new Date(save.save_end).toLocaleString(); // Modify date format as needed
+    formattedSave.save_amount = (save.save_amount/near).toFixed(5);
   
     return formattedSave;
   });

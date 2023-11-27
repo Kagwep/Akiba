@@ -12,7 +12,7 @@ import { BrowserRouter } from "react-router-dom";
 import { ChakraProvider } from "@chakra-ui/react";
 import customTheme from "./utils/theme";
 
-const CONTRACT_ADDRESS = "akiba2.testnet";
+const CONTRACT_ADDRESS = "akiba3.testnet";
 
 // When creating the wallet you can optionally ask to create an access key
 // Having the key enables to call non-payable methods without interrupting the user to sign
