@@ -32,7 +32,13 @@ const Rewards = ({ isSignedIn, contractId, wallet }) => {
   const [rewards, setRewards] = useState([]);
 
   useEffect(() => {
-    getRewards().then(setRewards);
+    
+    if (isSignedIn) {
+      // Perform the asynchronous action
+      getRewards().then(setRewards);
+    } else {
+      console.log('User is not signed in.');
+    }
   }, []);
 
   function getRewards() {
@@ -57,8 +63,8 @@ const Rewards = ({ isSignedIn, contractId, wallet }) => {
   return (
     <Box m="20px">
       <Header
-        title="Transfers"
-        subtitle="transfer save"
+        title="Rewards"
+        subtitle="Your rewards"
       />
       <Box
         m="40px 0 0 0"

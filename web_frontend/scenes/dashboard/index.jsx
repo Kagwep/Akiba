@@ -53,6 +53,7 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
   const [amount, setAmount] = useState('');
+  const [account_id, setAcoountID] = useState([]);
 
   const { keyStores } = nearAPI;
   const { connect } = nearAPI;
@@ -63,8 +64,10 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
     getTotalSavers().then(setTotalSavers);
     getTotalEarnings().then(setTotalEarnings);
     getSavers().then(setSavers);
-    getSaver().then(setSaver);
-    checkAndDisburse();
+   
+    
+
+
     // newConnectBalance.nearConnect().then(setAccBalance);
     // viewProfile().then((data) => (setUserProfile(data)));
   //   ;
@@ -77,6 +80,8 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
           const nearConnection = await connect(connectionConfig);
           const account = await nearConnection.account(wallet.accountId);
           const balance = await account.getAccountBalance();
+          const the_account = wallet.accountId;
+          setAcoountID(the_account);
           setBalance(balance);
           getSaves().then((savesData) => {
             // Sort saves in descending order based on ID
@@ -87,6 +92,7 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
         
             setSaves(firstTenSaves); // Set the remaining saves except the latest ten
         });
+        getSaver().then(setSaver);
         
           // console.log("alas",balance);
           
@@ -166,15 +172,23 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
         }
       }
   
-      function getSaver() {
-    
-        if (isSignedIn){
-        const account_id = wallet.accountId;
-        return wallet.viewMethod({ method: "get_saver", args: {account_id:account_id}, contractId });
-        }else{
-          return []
+      async function getSaver() {
+        try {
+          if (isSignedIn) {
+            const account_id = wallet.accountId;
+            const result = await wallet.viewMethod({ method: "get_saver", args: { account_id: account_id }, contractId });
+            return result;
+          } else {
+            return "";
+          }
+        } catch (error) {
+          console.error("Error fetching saver:", error);
+          return ""; // Return an empty string or handle the error accordingly
         }
       }
+      
+
+
 
       function checkAndDisburse() {
         return wallet.callMethod({ method: "check_and_disburse", contractId });
@@ -211,12 +225,33 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
         handleClose();
       };
 
+    
+      const disburse = () => {
+
+        if (isSignedIn){
+
+          const account_id = wallet.accountId;
+          
+            if (account_id == "akiba1.testnet"){
+              checkAndDisburse();
+            }
+
+          }
+        
+      };
+
   return (
     <Box m="20px">
       {/* HEADER */}
       <Box display="flex" justifyContent="space-between" alignItems="center">
         <Header title="Akiba" subtitle="Crypto Savings." />
       </Box>
+      
+      {account_id === "akiba3.testnet" && (
+        <Button variant="contained" color="primary" onClick={disburse}>
+          Check Disburse
+        </Button>
+      )}
 
       {/* GRID & CHARTS */}
       <Box
@@ -424,8 +459,12 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
                       
                       <Stack direction="row" spacing={3}>
                 
-                        {(saver.total_amount_earned/near).toFixed(5)}  NEAR
-                    
+                      {!isNaN(saver.total_amount_earned) && !isNaN(near) ? (
+                          `${(saver.total_amount_earned / near).toFixed(5)} NEAR`
+                        ) : (
+                          '0.0000 NEAR'
+                        )}
+
                       <Button variant="contained" color="primary" onClick={ handleOpen} >
                                   Withdraw {/* Display the default amount or provide a value */}
                       </Button>
@@ -525,7 +564,7 @@ const Dashboard = ({ isSignedIn, contractId, wallet }) => {
           </Typography>
           
           <Typography>
-        {saver.total_amount_earned <= 0 ? (
+          {isNaN(saver.total_amount_earned) || saver.total_amount_earned <= 0 ? (
           <Typography color="red"> No amount to withdraw </Typography>
         ) : (
           <div>
